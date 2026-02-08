@@ -1,0 +1,792 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+  @@index([isPublic])
+  @@map("system_config")
+}
+
+// ===================================
+// USER & SECURITY (Lógica Original Preservada)
+// ===================================
+
+model User {
+  id                String           @id @default(uuid())
+  firstName         String?
+  lastName          String?
+  idNumber          String?   @unique
+  birthDate         DateTime?
+  userName          String   @unique
+  email             String    @unique
+  password          String
+  phone             String
+  address           String
+  bankAccount       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
+  creditScore       Int       @default(500)
+  clientLevel       ClientLevel      @default(BRONZE)
+  accruedPoints     Int       @default(0)
+  status            UserStatus       @default(PENDING)
+  roleId            String
+  role              Role      @relation(fields: [roleId], references: [id])
+  mainRouteId       String?
+  mainRoute         Route?    @relation("RouteClients", fields: [mainRouteId], references: [id])
+  assignedRoutes    UserRoute[]
+  loansAsClient     Loan[]    @relation("ClientLoans")
+  collectionLogs    CollectionLog[]
+  supportTickets    SupportTicket[]
+  expenses          Expense[]
+  references        Reference[]
+  prizeRedemptions  PrizeRedemption[]
+  goals             Goal[]
+  wallet            Wallet?
+  notifications     Notification[]
+  referralsMade     ReferralBonus[]  @relation("Referrer")
+  referralsReceived ReferralBonus[]  @relation("Referee")
+  complianceCheck   ComplianceCheck?
+  extraPermissions  UserPermission[]
+  devices           Device[]
+  auditLogs         AuditLog[]
+  locations         LocationRecord[]
+  documents         UserDocument[]
+  loanLimits        LoanLimit[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime @updatedAt @default(now())
+
+  @@index([roleId])
+  @@index([email])
+  @@index([idNumber])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+
+// ===================================
+// LOAN SYSTEM MODELS (Nuevos agregados)
+// ===================================
+
+model Loan {
+  id                String           @id @default(uuid())
+  amountRequested   Float
+  interestRate      Float
+  pendingBalance    Float
+  paymentFrequency  PaymentFrequency @default(DAILY)
+  termDays          Int
+  totalInstallments Int
+  startDate         DateTime
+  dueDate           DateTime
+  status            LoanStatus       @default(PENDING)
+  productId         String
+  product           LoanProduct      @relation(fields: [productId], references: [id])
+  clientId          String
+  client            User             @relation("ClientLoans", fields: [clientId], references: [id])
+  routeId           String?
+  route             Route?           @relation("RouteLoans", fields: [routeId], references: [id])
+  previousLoanId    String?          @unique
+  previousLoan      Loan?            @relation("Refinancing", fields: [previousLoanId], references: [id])
+  nextLoan          Loan?            @relation("Refinancing")
+  installments      Installment[]
+  collaterals       Collateral[]
+  collectionLogs    CollectionLog[]
+  version           Int              @default(1)
+  deletedAt         DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now())
+
+  @@index([clientId])
+  @@index([routeId])
+  @@map("loans")
+}
+
+model LoanLimit {
+  id               String       @id @default(uuid())
+  loanProductId    String?
+  loanProduct      LoanProduct? @relation(fields: [loanProductId], references: [id])
+  clientId         String?
+  client           User?        @relation(fields: [clientId], references: [id])
+  maxAmount        Float?
+  minAmount        Float?
+  isActive         Boolean      @default(true)
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now())
+
+  @@index([loanProductId, clientId])
+  @@map("loan_limits")
+}
+
+model LoanProduct {
+  id                String        @id @default(uuid())
+  name              String        @unique
+  description       String?
+  defaultInterest   Float
+  defaultFrequency  PaymentFrequency
+  allowedTermsDays  Json          // Ej: [12, 15, 18, 30]
+  isActive          Boolean       @default(true)
+  loans             Loan[]
+  loanLimits        LoanLimit[]
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@map("loan_products")
+}
+
+model Installment {
+  id             String            @id @default(uuid())
+  number         Int
+  expectedAmount Float
+  paidAmount     Float             @default(0)
+  lateFee        Float             @default(0)
+  dueDate        DateTime
+  paymentDate    DateTime?
+  status         InstallmentStatus @default(PENDING)
+  loanId         String
+  loan           Loan              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  version        Int               @default(1)
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([dueDate])
+  @@map("installments")
+}
+
+// ===================================
+// CASH & FINANCE MODELS
+// ===================================
+
+model CashRegister {
+  id                String                @id @default(uuid())
+  routeId           String
+  route             Route                 @relation(fields: [routeId], references: [id])
+  openingDate       DateTime              @default(now())
+  closingDate       DateTime?
+  initialAmount     Float
+  finalAmount       Float?
+  calculatedBalance Float                 @default(0)
+  status            CashRegisterStatus    @default(OPEN)
+  movements         CashMovement[]
+  expenses          Expense[]
+  @@index([routeId])
+  @@map("cash_registers")
+}
+
+model CashMovement {
+  id                 String         @id @default(uuid())
+  cashRegisterId     String
+  cashRegister       CashRegister   @relation(fields: [cashRegisterId], references: [id])
+  amount             Float
+  type               MovementType
+  concept            String
+  loanId             String?
+  expenseId          String?
+  createdAt          DateTime       @default(now())
+  @@map("cash_movements")
+}
+
+model Wallet {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id])
+  balance      Float               @default(0)
+  transactions WalletTransaction[]
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id        String          @id @default(uuid())
+  walletId  String
+  wallet    Wallet          @relation(fields: [walletId], references: [id])
+  amount    Float
+  type      TransactionType
+  createdAt DateTime        @default(now())
+  @@map("wallet_transactions")
+}
+
+// ===================================
+// INVESTORS & EXPENSES
+// ===================================
+
+model Investor {
+  id             String             @id @default(uuid())
+  name           String
+  investedCapital Float             @default(0)
+  sharePercentage Float?
+  isActive       Boolean            @default(true)
+  movements      InvestorMovement[]
+
+  @@map("investors")
+}
+
+model InvestorMovement {
+  id             String               @id @default(uuid())
+  investorId     String
+  investor       Investor             @relation(fields: [investorId], references: [id])
+  amount         Float
+  type           InvestorMovementType
+  createdAt      DateTime             @default(now())
+
+  @@map("investor_movements")
+}
+
+model Expense {
+  id             String          @id @default(uuid())
+  amount         Float
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
+  categoryId     String
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id])
+  cashRegisterId String?
+  cashRegister   CashRegister?   @relation(fields: [cashRegisterId], references: [id])
+  createdAt      DateTime        @default(now())
+
+  @@map("expenses")
+}
+
+model ExpenseCategory {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  expenses Expense[]
+
+  @@map("expense_categories")
+}
+
+// ===================================
+// OTHERS (Auditoría, Soporte, Premios)
+// ===================================
+
+model CollectionLog {
+  id            String           @id @default(uuid())
+  loanId        String
+  loan          Loan             @relation(fields: [loanId], references: [id])
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  result        CollectionResult
+  observation   String?          @db.Text
+  createdAt     DateTime         @default(now())
+
+  @@map("collection_logs")
+}
+
+model SupportTicket {
+  id             String         @id @default(uuid())
+  title          String
+  userId         String
+  user           User           @relation(fields: [userId], references: [id])
+  priority       TicketPriority @default(MEDIUM)
+  status         TicketStatus   @default(OPEN)
+  adminResponse  String?
+  createdAt      DateTime       @default(now())
+
+  @@map("support_tickets")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model PrizeRedemption {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  prizeId   String
+  prize     Prize            @relation(fields: [prizeId], references: [id])
+  status    RedemptionStatus @default(REQUESTED)
+  createdAt DateTime         @default(now())
+
+  @@map("prize_redemptions")
+}
+
+model Prize {
+  id          String            @id @default(uuid())
+  name        String
+  pointCost   Int
+  stock       Int
+  redemptions PrizeRedemption[]
+
+  @@map("prizes")
+}
+
+model Goal {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  month         Int
+  year          Int
+  targetAmount  Float
+  status        GoalStatus @default(IN_PROGRESS)
+
+  @@map("goals")
+}
+
+model ReferralBonus {
+  id          String         @id @default(uuid())
+  referrerId  String
+  referrer    User           @relation("Referrer", fields: [referrerId], references: [id])
+  refereeId   String
+  referee     User           @relation("Referee", fields: [refereeId], references: [id])
+  amount      Float
+  status      ReferralStatus @default(PENDING)
+
+  @@map("referral_bonuses")
+}
+
+model Holiday {
+  id          String   @id @default(uuid())
+  date        DateTime @unique
+  description String
+  @@map("holidays")
+}
+
+model Reference {
+  id             String  @id @default(uuid())
+  userId         String
+  user           User    @relation(fields: [userId], references: [id])
+  fullName       String
+  phone          String
+  isCoSigner     Boolean @default(false)
+  @@map("references")
+}
+
+// ===================================
+// SECURITY & INFRA (Sin cambios)
+// ===================================
+
+model Role {
+  id           String           @id @default(uuid())
+  name         String           @unique
+  description  String?
+  isSystemRole Boolean          @default(false)
+  permissions  RolePermission[]
+  users        User[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String            @id @default(uuid())
+  slug        String            @unique
+  description String?
+  category    String?
+  
+  users       UserPermission[]
+  roles       RolePermission[]
+  routes      RoutePermission[] 
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([slug])
+  @@index([category])
+  @@map("permissions")
+}
+
+model Route {
+  id            String      @id @default(uuid())
+  name          String      @unique
+  description   String?
+  zone          String?
+  isActive      Boolean     @default(true)
+  
+  clients       User[]      @relation("RouteClients")
+  loans         Loan[]      @relation("RouteLoans")
+  assignedUsers UserRoute[]
+  cashRegisters CashRegister[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt @default(now())
+
+  @@index([name])
+  @@index([zone])
+  @@index([isActive])
+  @@map("routes")
+}
+
+model UserRoute {
+  id           String    @id @default(uuid())
+  userId       String
+  routeId      String
+  roleInRoute  String?   // Mejora OmniHub: "COBRADOR", "SUPERVISOR"
+  isActive     Boolean   @default(true)
+  assignedAt   DateTime  @default(now())
+  unassignedAt DateTime? 
+  assignedBy   String?
+  
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route        Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  
+  @@unique([userId, routeId])      
+  @@index([userId])                
+  @@index([routeId])               
+  @@index([isActive])              
+  
+  @@map("user_routes")
+}
+
+model Device {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String     @unique
+  deviceName   String?
+  deviceModel  String?
+  isTrusted    Boolean    @default(false)
+  isBlocked    Boolean    @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deviceId])
+  @@map("devices")
+}
+
+model ComplianceCheck {
+  id                     String           @id @default(uuid())
+  userId                 String           @unique
+  user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status                 ComplianceStatus @default(PENDING)
+  amlRiskScore           Int              @default(0)
+  lastReviewDate         DateTime         @default(now())
+  riskFlags              Json?            @db.JsonB
+  requiresManualApproval Boolean          @default(false)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([amlRiskScore])
+  @@map("compliance_checks")
+}
+
+model UserDocument {
+  id              String         @id @default(uuid())
+  type            DocumentType
+  url             String
+  description     String?
+  status          DocumentStatus @default(PENDING)
+  confidenceScore Float?         @default(0)
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  rejectionReason String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([id])
+  @@map("user_documents")
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity        String
+  entityId      String
+  action        AuditAction
+  changeDetails String      @db.Text
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model LocationRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latitude  Float
+  longitude Float
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@map("location_records")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  grantedBy    String?
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permissions")
+}
+
+model RoutePermissionMap {
+  id               String            @id @default(uuid())
+  routeKey         String            @unique
+  routeName        String
+  routeDescription String?           @db.Text
+  category         String
+  httpMethod       String
+  path             String
+  requiresAuth     Boolean           @default(true)
+  onlyPrimaryRole  Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  permissions      RoutePermission[]
+
+  @@index([routeKey])
+  @@index([category])
+  @@index([httpMethod])
+  @@index([onlyPrimaryRole])
+  @@map("route_permission_maps")
+}
+
+model RoutePermission {
+  id           String             @id @default(uuid())
+  routeId      String
+  route        RoutePermissionMap @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission         @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+
+  @@unique([routeId, permissionId])
+  @@index([routeId])
+  @@index([permissionId])
+  @@map("route_permissions")
+}
+
+model Collateral {
+  id             String  @id @default(uuid())
+  loanId         String
+  loan           Loan    @relation(fields: [loanId], references: [id])
+  name           String
+  estimatedValue Float?
+  status         String  @default("IN_CUSTODY")
+}
+
+// ===================================
+// UNIVERSAL AI/ML MODELO
+// ===================================
+model AIInsight {
+  id                String      @id @default(uuid())
+  entityType        String
+  entityId          String
+  insightType       String
+  subType           String?
+  value             Float?
+  label             String?
+  recommendedId     String?
+  recommendedType   String?
+  message           String?
+  details           Json?
+  modelName         String?
+  score             Float?
+  origin            String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  @@index([entityType, entityId, insightType, subType])
+  @@map("ai_insights")
+}
+
+// ===================================
+// ENUMS
+// ===================================
+
+enum ClientLevel {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+enum UserStatus {
+  PENDING
+  ACTION_REQUIRED
+  ACTIVE
+  BLOCKED
+  DEACTIVATED
+}
+
+enum PaymentFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  PAID
+  OVERDUE
+  REFINANCED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID_FULL
+  PAID_PARTIAL
+  OVERDUE
+  CANCELLED
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+  BALANCED
+  UNBALANCED
+}
+
+enum MovementType {
+  INCOME
+  EXPENSE
+}
+
+enum InvestorMovementType {
+  CAPITAL_CONTRIBUTION
+  CAPITAL_WITHDRAWAL
+  PROFIT_WITHDRAWAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  RESTORE
+}
+
+enum CollectionResult {
+  PAYMENT_PROMISE
+  NO_CONTACT
+  REFUSAL
+  CLIENT_ILLNESS
+  ALREADY_PAID
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum NotificationType {
+  PUSH
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum GoalStatus {
+  IN_PROGRESS
+  ACHIEVED
+  FAILED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum RedemptionStatus {
+  REQUESTED
+  DELIVERED
+  REJECTED
+}
+
+enum ReferralStatus {
+  PENDING
+  RELEASED
+  PAID
+  CANCELLED
+}
+
+enum ComplianceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum DocumentType {
+  ID_FRONT
+  ID_BACK
+  UTILITY_BILL
+  PROOFOF_INCOME
+  SELFIE
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RE_UPLOAD_REQUIRED
+}
