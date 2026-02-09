@@ -64,13 +64,6 @@ export async function getAllRoles(
 
   // Más filtros: { isSystemRole: true }, etc.
 
-  // Relación: incluye permisos, usuarios (modifica según tus modelos)
-  const include = {
-    permissions: true,
-    users: {
-      select: { id: true, email: true }
-    }
-  };
 
   // Orden dinámico
   const orderBy = pagination.sort
@@ -80,7 +73,7 @@ export async function getAllRoles(
   return await paginateResource(
     prisma.role,
     pagination,
-    { where, orderBy, include }
+    { where, orderBy}
   );
 }
 
