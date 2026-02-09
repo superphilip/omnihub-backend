@@ -1,3 +1,4 @@
+import { use } from 'react';
 import { z } from 'zod';
 
 
@@ -5,6 +6,7 @@ export const UserStatusEnum = z.enum(['PENDING', 'ACTION_REQUIRED', 'ACTIVE', 'B
 export const ClientLevelEnum = z.enum(['BRONZE', 'SILVER', 'GOLD', 'DIAMOND']);
 
 export const signupSchema = z.object({
+    userName: z.string().min(3, 'Username must be at least 3 characters').max(30, 'Username cannot exceed 30 characters').trim(),
     email: z
         .string()
         .nonempty('Email is required')

@@ -8,12 +8,14 @@ import {
   assignPermissionsToRoleSchema,
   removePermissionsFromRoleSchema,
 } from '../validators/role.validator.js';
+import { paginationMiddleware } from '../middlewares/pagination.middleware.js';
 
 const router = Router();
 
 // Todas las rutas requieren autenticación y rol principal
 router.use(authenticate);
 router.use(requirePrimaryRole);
+
 
 // CRUD de roles
 router.post(
@@ -22,7 +24,7 @@ router.post(
   RoleController.createRole
 );
 
-router.get('/', RoleController.getAllRoles);
+router.get('/', paginationMiddleware, RoleController.getAllRoles);
 
 router.get('/:id', RoleController.getRoleById);
 

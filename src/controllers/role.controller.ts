@@ -15,13 +15,10 @@ export const createRole = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export const getAllRoles = asyncHandler(async (req:  Request, res: Response) => {
-  const roles = await RoleService.getAllRoles();
 
-  res.json({
-    success: true,
-    data: roles,
-  });
+export const getAllRoles = asyncHandler(async (req, res) => {
+  const { data, meta } = await RoleService.getAllRoles(req.pagination!, req.filters!);
+  res.json({ success: true, data, meta });
 });
 
 export const getRoleById = asyncHandler(async (req: Request, res: Response) => {

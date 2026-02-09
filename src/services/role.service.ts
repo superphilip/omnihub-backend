@@ -1,6 +1,8 @@
 import prisma, { AuditAction } from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import { createAuditLog } from '../utils/audit.js';
+import { paginateResource } from '../utils/PaginatePrisma.utils.js';
+import type { FilterParams, PaginationParams } from '../utils/PaginationTypes.utils.js';
 import type {
   CreateRoleInput,
   UpdateRoleInput,
@@ -38,17 +40,49 @@ export const createRole = async (
   return role;
 };
 
-export const getAllRoles = async () => {
-  return await prisma.role.findMany({
-    include: {
-      _count: { select: { users: true, permissions: true } },
-    },
-    orderBy: [
-      { isSystemRole: 'desc' },
-      { name: 'asc' },
-    ],
-  });
-};
+
+// Ejemplo en roles
+export async function getAllRoles(
+  pagination: PaginationParams,
+  filters: FilterParams
+) {
+  // Búsqueda avanzada: search en nombre/descripcion
+  let where: Record<string, unknown> = {};
+
+  if (filters.search) {
+    where.OR = [
+      { name: { contains: filters.search, mode: 'insensitive' } },
+      { description: { contains: filters.search, mode: 'insensitive' } }
+    ];
+  }
+
+  // Multi-campo filtrado
+  if (filters.status) {
+    // Ejemplo si tienes campo status en roles
+    where.status = filters.status;
+  }
+
+  // Más filtros: { isSystemRole: true }, etc.
+
+  // Relación: incluye permisos, usuarios (modifica según tus modelos)
+  const include = {
+    permissions: true,
+    users: {
+      select: { id: true, email: true }
+    }
+  };
+
+  // Orden dinámico
+  const orderBy = pagination.sort
+    ? { [pagination.sort]: pagination.order }
+    : [{ isSystemRole: 'desc' as const }, { name: 'asc' as const }];
+
+  return await paginateResource(
+    prisma.role,
+    pagination,
+    { where, orderBy, include }
+  );
+}
 
 export const getRoleById = async (id: string) => {
   const role = await prisma.role.findUnique({
