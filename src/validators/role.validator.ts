@@ -4,8 +4,7 @@ export const createRoleSchema = z. object({
   name: z
     .string()
     .min(3, 'Name must be at least 3 characters')
-    .max(50, 'Name must be at most 50 characters')
-    .regex(/^[A-Z_]+$/, 'Name must contain only uppercase letters and underscores'),
+    .max(50, 'Name must be at most 50 characters'),
   description: z
     .string()
     .min(3, 'Description must be at least 3 characters')
@@ -19,7 +18,6 @@ export const updateRoleSchema = z.object({
     .string()
     .min(3)
     .max(50)
-    .regex(/^[A-Z_]+$/)
     .optional(),
   description: z
     .string()
