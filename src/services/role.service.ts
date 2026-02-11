@@ -41,40 +41,54 @@ export const createRole = async (
 };
 
 
-// Ejemplo en roles
 export async function getAllRoles(
   pagination: PaginationParams,
   filters: FilterParams
 ) {
-  // Búsqueda avanzada: search en nombre/descripcion
-  let where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {};
 
   if (filters.search) {
     where.OR = [
       { name: { contains: filters.search, mode: 'insensitive' } },
-      { description: { contains: filters.search, mode: 'insensitive' } }
+      { description: { contains: filters.search, mode: 'insensitive' } },
     ];
   }
 
-  // Multi-campo filtrado
-  if (filters.status) {
-    // Ejemplo si tienes campo status en roles
-    where.status = filters.status;
-  }
-
-  // Más filtros: { isSystemRole: true }, etc.
-
-
-  // Orden dinámico
   const orderBy = pagination.sort
-    ? { [pagination.sort]: pagination.order }
+    ? { [pagination.sort]: (pagination.order ?? 'asc') }
     : [{ isSystemRole: 'desc' as const }, { name: 'asc' as const }];
 
-  return await paginateResource(
-    prisma.role,
-    pagination,
-    { where, orderBy}
-  );
+  // select para devolver solo campos escalares
+  const include = undefined;
+  const select = {
+    id: true,
+    name: true,
+    description: true,
+    isSystemRole: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
+  const [data, meta] = await Promise.all([
+    prisma.role.findMany({
+      where,
+      orderBy,
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+      select,
+    }),
+    prisma.role.count({ where }),
+  ]);
+
+  return {
+    data,
+    meta: {
+      total: meta,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages: Math.ceil(meta / pagination.limit),
+    },
+  };
 }
 
 export const getRoleById = async (id: string) => {

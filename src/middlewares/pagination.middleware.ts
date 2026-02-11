@@ -1,24 +1,28 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { FilterParams, PaginationParams } from '../utils/PaginationTypes.utils.js';
+import type { PaginationParams, FilterParams } from '../utils/PaginationTypes.utils.js';
 
+const DEFAULT_LIMIT = Number(process.env.PAGINATION_DEFAULT_LIMIT ?? 10);
+const MAX_LIMIT = Number(process.env.PAGINATION_MAX_LIMIT ?? 100);
 
-export function paginationMiddleware(req: Request, res: Response, next: NextFunction) {
-  const page = Math.max(1, +(req.query.page ?? 1));
-  const limit = Math.max(1, +(req.query.limit ?? 10));
+export function paginationMiddleware(req: Request, _res: Response, next: NextFunction) {
+  const page = Math.max(1, Number(req.query.page ?? 1));
+  let limit = Math.max(1, Number(req.query.limit ?? DEFAULT_LIMIT));
+  limit = Math.min(limit, MAX_LIMIT);
+
   const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
-  const order = req.query.order === 'desc' ? 'desc' : 'asc';
+  const order: PaginationParams['order'] = req.query.order === 'desc' ? 'desc' : 'asc';
 
   req.pagination = { page, limit, sort, order };
 
-  // Extrae filtros/datos de búsqueda como objeto
+  const reserved = new Set(['page', 'limit', 'sort', 'order']);
   const filters: FilterParams = {};
   for (const key of Object.keys(req.query)) {
-    // Solo filtros explícitos, puedes filtrar keys si lo prefieres
-    if (!['page', 'limit', 'sort', 'order'].includes(key)) {
+    if (!reserved.has(key) && typeof req.query[key] === 'string') {
       filters[key] = req.query[key] as string;
     }
   }
   req.filters = filters;
+
   next();
 }
 

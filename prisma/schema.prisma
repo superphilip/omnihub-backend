@@ -644,6 +644,22 @@ model AIInsight {
   @@map("ai_insights")
 }
 
+model Translation {
+  id            String   @id @default(uuid())
+  resourceType  String   // e.g. "roles", "permissions", "routes", "products"
+  resourceId    String   // id de la entidad (uuid/string/int en texto)
+  field         String   // e.g. "name", "description", "statusText"
+  locale        String   // e.g. "es", "en"
+  text          String   @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([resourceType, resourceId, field, locale]) // Unicidad por entidad/campo/idioma
+  @@index([resourceType, resourceId, locale])         // Búsqueda rápida por entidad/idioma
+  @@map("translations")
+}
+
 // ===================================
 // ENUMS
 // ===================================

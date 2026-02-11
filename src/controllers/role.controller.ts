@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
 import * as RoleService from '../services/role.service.js';
+import { inferColumnsFromRows } from '../utils/ColumnInfer.utils.js';
 
 export const createRole = asyncHandler(async (req: Request, res: Response) => {
   const role = await RoleService.createRole(
@@ -16,10 +17,33 @@ export const createRole = asyncHandler(async (req: Request, res: Response) => {
 });
 
 
-export const getAllRoles = asyncHandler(async (req, res) => {
-  const { data, meta } = await RoleService.getAllRoles(req.pagination!, req.filters!);
-  res.json({ success: true, data, meta });
-});
+export async function getAllRoles(req: Request, res: Response) {
+  const pagination = req.pagination!;
+  const filters = req.filters ?? {};
+  const includeColumns = String(req.query.include ?? '')
+    .split(',').map(s => s.trim()).includes('columns');
+
+  // Ejecuta la consulta
+  const result = await RoleService.getAllRoles(pagination, filters);
+
+  // Si se piden columnas, infiérela desde la data
+  if (includeColumns) {
+    const columns = inferColumnsFromRows(result.data as unknown as Record<string, unknown>[], {
+      excludeKeys: ['password', 'refreshToken'],
+    });
+
+    return res.json({
+      data: result.data,
+      columns,
+      meta: result.meta,
+    });
+  }
+
+  return res.json({
+    data: result.data,
+    meta: result.meta,
+  });
+}
 
 export const getRoleById = asyncHandler(async (req: Request, res: Response) => {
   const role = await RoleService. getRoleById(req.params. id as string);
