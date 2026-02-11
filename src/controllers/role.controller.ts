@@ -16,17 +16,18 @@ export const createRole = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-
 export async function getAllRoles(req: Request, res: Response) {
   const pagination = req.pagination!;
   const filters = req.filters ?? {};
   const includeColumns = String(req.query.include ?? '')
     .split(',').map(s => s.trim()).includes('columns');
 
-  // Ejecuta la consulta
-  const result = await RoleService.getAllRoles(pagination, filters);
+  const result = await RoleService.getAllRoles(
+    pagination,
+    filters,
+    req.locale ?? 'es' // ← pasa locale para traducción
+  );
 
-  // Si se piden columnas, infiérela desde la data
   if (includeColumns) {
     const columns = inferColumnsFromRows(result.data as unknown as Record<string, unknown>[], {
       excludeKeys: ['password', 'refreshToken'],
@@ -46,7 +47,10 @@ export async function getAllRoles(req: Request, res: Response) {
 }
 
 export const getRoleById = asyncHandler(async (req: Request, res: Response) => {
-  const role = await RoleService. getRoleById(req.params. id as string);
+  const role = await RoleService.getRoleById(
+    req.params.id as string,
+    req.locale // ← localiza si está disponible
+  );
 
   res.json({
     success: true,
@@ -56,9 +60,9 @@ export const getRoleById = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateRole = asyncHandler(async (req: Request, res: Response) => {
   const role = await RoleService.updateRole(
-    req. params.id as string,
+    req.params.id as string,
     req.body,
-    req. user!.userId
+    req.user!.userId
   );
 
   res.json({
@@ -68,7 +72,7 @@ export const updateRole = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-export const deleteRole = asyncHandler(async (req: Request, res:  Response) => {
+export const deleteRole = asyncHandler(async (req: Request, res: Response) => {
   await RoleService.deleteRole(
     req.params.id as string,
     req.user!.userId
@@ -80,7 +84,7 @@ export const deleteRole = asyncHandler(async (req: Request, res:  Response) => {
   });
 });
 
-export const assignPermissionsToRole = asyncHandler(async (req: Request, res:  Response) => {
+export const assignPermissionsToRole = asyncHandler(async (req: Request, res: Response) => {
   const result = await RoleService.assignPermissionsToRole(
     req.params.id as string,
     req.body,
@@ -89,11 +93,10 @@ export const assignPermissionsToRole = asyncHandler(async (req: Request, res:  R
 
   res.json({
     success: true,
-    message: `${result.assigned} permission(s) assigned successfully.  ${result.skipped} already existed`,
+    message: `${result.assigned} permission(s) assigned successfully. ${result.skipped} already existed`,
     data: result,
   });
 });
-
 
 export const removePermissionsFromRole = asyncHandler(async (req: Request, res: Response) => {
   const result = await RoleService.removePermissionsFromRole(

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticate, requirePrimaryRole } from '../middlewares/authMiddleware.js';
 import { validateBody } from '../middlewares/validateBody.js';
+import { paginationMiddleware } from '../middlewares/pagination.middleware.js';
+
 import * as RoleController from '../controllers/role.controller.js';
 import {
   createRoleSchema,
@@ -8,41 +10,54 @@ import {
   assignPermissionsToRoleSchema,
   removePermissionsFromRoleSchema,
 } from '../validators/role.validator.js';
-import { paginationMiddleware } from '../middlewares/pagination.middleware.js';
 
 const router = Router();
 
-// Todas las rutas requieren autenticación y rol principal
+// Todas las rutas de Roles requieren autenticación y rol principal
 router.use(authenticate);
 router.use(requirePrimaryRole);
 
-
-// CRUD de roles
+// Crear rol
 router.post(
   '/',
   validateBody(createRoleSchema),
   RoleController.createRole
 );
 
-router.get('/', paginationMiddleware, RoleController.getAllRoles);
+// Listar roles (paginado, filtrado) con locale aplicado vía middleware attachLocale
+router.get(
+  '/',
+  paginationMiddleware,
+  RoleController.getAllRoles
+);
 
-router.get('/:id', RoleController.getRoleById);
+// Obtener rol por ID (incluye relaciones; aplica locale si está presente)
+router.get(
+  '/:id',
+  RoleController.getRoleById
+);
 
+// Actualizar rol (nombre/descripcion base; traducciones se gestionan aparte)
 router.put(
   '/:id',
   validateBody(updateRoleSchema),
   RoleController.updateRole
 );
 
-router.delete('/:id', RoleController.deleteRole);
+// Eliminar rol
+router.delete(
+  '/:id',
+  RoleController.deleteRole
+);
 
-// Asignar/quitar permisos masivamente
+// Asignar permisos masivamente a un rol
 router.post(
   '/:id/permissions',
   validateBody(assignPermissionsToRoleSchema),
   RoleController.assignPermissionsToRole
 );
 
+// Quitar permisos masivamente de un rol
 router.delete(
   '/:id/permissions',
   validateBody(removePermissionsFromRoleSchema),

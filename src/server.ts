@@ -26,6 +26,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { attachLocale } from './middlewares/locale.middleware.js';
 
 
 
@@ -40,6 +41,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(attachLocale);
 
 app.use('/api/setup', setupRouter);
 app.use('/api/permissions', permissionRouter);

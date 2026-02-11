@@ -1,7 +1,6 @@
 import prisma, { AuditAction } from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import { createAuditLog } from '../utils/audit.js';
-import { paginateResource } from '../utils/PaginatePrisma.utils.js';
 import type { FilterParams, PaginationParams } from '../utils/PaginationTypes.utils.js';
 import type {
   CreateRoleInput,
@@ -9,7 +8,12 @@ import type {
   AssignPermissionsToRoleInput,
   RemovePermissionsFromRoleInput,
 } from '../validators/role.validator.js';
+import type { Locale } from '../i18n/locale.js';
+import { fetchTranslationsMap, applyTranslations } from '../i18n/translate-repo.js';
 
+/**
+ * Crea un rol (texto base en la entidad; traducciones se administran aparte).
+ */
 export const createRole = async (
   data: CreateRoleInput,
   userId: string
@@ -40,10 +44,13 @@ export const createRole = async (
   return role;
 };
 
-
+/**
+ * Lista roles con paginación/filtrado, devolviendo name/description localizados según locale.
+ */
 export async function getAllRoles(
   pagination: PaginationParams,
-  filters: FilterParams
+  filters: FilterParams,
+  locale: Locale
 ) {
   const where: Record<string, unknown> = {};
 
@@ -58,8 +65,6 @@ export async function getAllRoles(
     ? { [pagination.sort]: (pagination.order ?? 'asc') }
     : [{ isSystemRole: 'desc' as const }, { name: 'asc' as const }];
 
-  // select para devolver solo campos escalares
-  const include = undefined;
   const select = {
     id: true,
     name: true,
@@ -69,7 +74,7 @@ export async function getAllRoles(
     updatedAt: true,
   } as const;
 
-  const [data, meta] = await Promise.all([
+  const [data, total] = await Promise.all([
     prisma.role.findMany({
       where,
       orderBy,
@@ -80,18 +85,26 @@ export async function getAllRoles(
     prisma.role.count({ where }),
   ]);
 
+  // Traducciones desde Translation con fallback al valor base
+  const ids = data.map(r => r.id);
+  const tmap = await fetchTranslationsMap(prisma, 'roles', ids, ['name', 'description'], locale);
+  const localized = applyTranslations(data, tmap);
+
   return {
-    data,
+    data: localized,
     meta: {
-      total: meta,
+      total,
       page: pagination.page,
       limit: pagination.limit,
-      totalPages: Math.ceil(meta / pagination.limit),
+      totalPages: Math.max(1, Math.ceil(total / pagination.limit)),
     },
   };
 }
 
-export const getRoleById = async (id: string) => {
+/**
+ * Obtiene un rol por ID (incluye relaciones); opcionalmente localiza los campos básicos.
+ */
+export const getRoleById = async (id: string, locale?: Locale) => {
   const role = await prisma.role.findUnique({
     where: { id },
     include: {
@@ -120,9 +133,20 @@ export const getRoleById = async (id: string) => {
   });
   if (!role) throw new AppError('Role not found', 404);
 
+  // Localiza name/description si se proporciona locale
+  if (locale) {
+    const tmap = await fetchTranslationsMap(prisma, 'roles', [role.id], ['name', 'description'], locale);
+    const t = tmap.get(role.id);
+    if (t?.name) role.name = t.name;
+    if (t?.description) role.description = t.description;
+  }
+
   return role;
 };
 
+/**
+ * Actualiza un rol (texto base). Las traducciones se administran en el módulo de translations.
+ */
 export const updateRole = async (
   id: string,
   data: UpdateRoleInput,
@@ -165,6 +189,9 @@ export const updateRole = async (
   return updated;
 };
 
+/**
+ * Elimina un rol (verifica usos y sistema).
+ */
 export const deleteRole = async (id: string, userId: string) => {
   const role = await prisma.role.findUnique({
     where: { id },
@@ -197,6 +224,9 @@ export const deleteRole = async (id: string, userId: string) => {
   });
 };
 
+/**
+ * Asigna permisos a un rol (evita duplicados).
+ */
 export const assignPermissionsToRole = async (
   roleId: string,
   data: AssignPermissionsToRoleInput,
@@ -252,6 +282,9 @@ export const assignPermissionsToRole = async (
   };
 };
 
+/**
+ * Quita permisos de un rol (solo los que existan).
+ */
 export const removePermissionsFromRole = async (
   roleId: string,
   data: RemovePermissionsFromRoleInput,
