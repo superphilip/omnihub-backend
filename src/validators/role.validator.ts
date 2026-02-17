@@ -26,6 +26,7 @@ export const updateRoleSchema = z.object({
     .max(500)
     .optional()
     .nullable(),
+  isSystemRole: z.boolean().optional(),
 });
 
 export const assignPermissionsToRoleSchema = z. object({

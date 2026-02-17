@@ -183,8 +183,56 @@ export const updateRole = async (
     data: {
       ...(data.name && { name: data.name }),
       ...(data.description !== undefined && { description: data.description }),
+      ...(data.isSystemRole !== undefined && { isSystemRole: data.isSystemRole }),
     },
   });
+
+  // Traducción automática
+  const targetLangs = ['en'];
+  for (const lang of targetLangs) {
+    if (data.name) {
+      const nameTranslated = await translator.translate(data.name, lang);
+      await prisma.translation.upsert({
+        where: {
+          resourceType_resourceId_field_locale: {
+            resourceType: 'roles',
+            resourceId: id,
+            field: 'name',
+            locale: lang,
+          },
+        },
+        update: { text: nameTranslated },
+        create: {
+          resourceType: 'roles',
+          resourceId: id,
+          field: 'name',
+          locale: lang,
+          text: nameTranslated,
+        },
+      });
+    }
+    if (data.description !== undefined) {
+      const descTranslated = await translator.translate(data.description ?? '', lang);
+      await prisma.translation.upsert({
+        where: {
+          resourceType_resourceId_field_locale: {
+            resourceType: 'roles',
+            resourceId: id,
+            field: 'description',
+            locale: lang,
+          },
+        },
+        update: { text: descTranslated },
+        create: {
+          resourceType: 'roles',
+          resourceId: id,
+          field: 'description',
+          locale: lang,
+          text: descTranslated,
+        },
+      });
+    }
+  }
 
   await createAuditLog({
     userId,
@@ -225,6 +273,14 @@ export const deleteRole = async (id: string, userId: string) => {
       400
     );
   }
+
+  // Elimina traducciones asociadas
+  await prisma.translation.deleteMany({
+    where: {
+      resourceType: 'roles',
+      resourceId: id,
+    },
+  });
 
   await prisma.role.delete({ where: { id } });
 
