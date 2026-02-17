@@ -10,24 +10,39 @@ import type {
 } from '../validators/role.validator.js';
 import type { Locale } from '../i18n/locale.js';
 import { fetchTranslationsMap, applyTranslations } from '../i18n/translate-repo.js';
+import { TranslationService } from './translation.service.js';
+import { translationConfig } from '../config/env.js';
 
+
+
+const translator = new TranslationService(translationConfig);
 /**
  * Crea un rol (texto base en la entidad; traducciones se administran aparte).
  */
-export const createRole = async (
-  data: CreateRoleInput,
-  userId: string
-) => {
+export const createRole = async (data: CreateRoleInput, userId: string) => {
   const exists = await prisma.role.findUnique({ where: { name: data.name } });
-  if (exists) throw new AppError('Role with this name already exists', 409);
+  if (exists) throw new Error('Role with this name already exists');
 
   const role = await prisma.role.create({
     data: {
       name: data.name,
       description: data.description,
-      isSystemRole: false,
+      isSystemRole: data.isSystemRole,
     },
   });
+
+  // Traducción automática (ejemplo: a inglés)
+  const targetLangs = ['en'];
+  for (const lang of targetLangs) {
+    const nameTranslated = await translator.translate(role.name, lang);
+    const descTranslated = await translator.translate(role.description ?? '', lang);
+    await prisma.translation.createMany({
+      data: [
+        { resourceType: 'roles', resourceId: role.id, field: 'name', locale: lang, text: nameTranslated },
+        { resourceType: 'roles', resourceId: role.id, field: 'description', locale: lang, text: descTranslated }
+      ]
+    });
+  }
 
   await createAuditLog({
     userId,
@@ -56,6 +71,7 @@ export async function getAllRoles(
 
   if (filters.search) {
     where.OR = [
+      { name: { equals: filters.search, mode: 'insensitive' } },
       { name: { contains: filters.search, mode: 'insensitive' } },
       { description: { contains: filters.search, mode: 'insensitive' } },
     ];

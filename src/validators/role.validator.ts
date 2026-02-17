@@ -11,6 +11,7 @@ export const createRoleSchema = z. object({
     .max(500, 'Description must be at most 500 characters')
     .optional()
     .nullable(),
+  isSystemRole: z.boolean(),
 });
 
 export const updateRoleSchema = z.object({

@@ -5,7 +5,7 @@ const JWT_SECRET: Secret = process.env.JWT_SECRET || "default_secret_key_change_
 const JWT_REFRESH_SECRET: Secret = process.env.JWT_REFRESH_SECRET || "default_refresh_secret_change_in_production";
 
 const ACCESS_TOKEN_EXPIRES_IN = (process.env.JWT_EXPIRES_IN || '15m') as SignOptions['expiresIn'];
-const REFRESH_TOKEN_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as SignOptions['expiresIn'];
+const REFRESH_TOKEN_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN || '15d') as SignOptions['expiresIn'];
 
 export interface TokenPayload {
     userId: string;
