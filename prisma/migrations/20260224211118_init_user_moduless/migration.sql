@@ -92,6 +92,8 @@ CREATE TABLE "users" (
     "status" "UserStatus" NOT NULL DEFAULT 'PENDING',
     "roleId" TEXT NOT NULL,
     "mainRouteId" TEXT,
+    "lastLoginAt" TIMESTAMP(3),
+    "passwordChangedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -567,6 +569,36 @@ CREATE TABLE "ai_insights" (
     CONSTRAINT "ai_insights_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "translations" (
+    "id" TEXT NOT NULL,
+    "resourceType" TEXT NOT NULL,
+    "resourceId" TEXT NOT NULL,
+    "field" TEXT NOT NULL,
+    "locale" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "translations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sessions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "deviceId" TEXT,
+    "token" TEXT NOT NULL,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "isValid" BOOLEAN NOT NULL DEFAULT true,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "system_config_key_key" ON "system_config"("key");
 
@@ -759,6 +791,24 @@ CREATE UNIQUE INDEX "route_permissions_routeId_permissionId_key" ON "route_permi
 -- CreateIndex
 CREATE INDEX "ai_insights_entityType_entityId_insightType_subType_idx" ON "ai_insights"("entityType", "entityId", "insightType", "subType");
 
+-- CreateIndex
+CREATE INDEX "translations_resourceType_resourceId_locale_idx" ON "translations"("resourceType", "resourceId", "locale");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "translations_resourceType_resourceId_field_locale_key" ON "translations"("resourceType", "resourceId", "field", "locale");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sessions_token_key" ON "sessions"("token");
+
+-- CreateIndex
+CREATE INDEX "sessions_userId_idx" ON "sessions"("userId");
+
+-- CreateIndex
+CREATE INDEX "sessions_token_idx" ON "sessions"("token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sessions_userId_deviceId_key" ON "sessions"("userId", "deviceId");
+
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
@@ -881,3 +931,9 @@ ALTER TABLE "route_permissions" ADD CONSTRAINT "route_permissions_permissionId_f
 
 -- AddForeignKey
 ALTER TABLE "Collateral" ADD CONSTRAINT "Collateral_loanId_fkey" FOREIGN KEY ("loanId") REFERENCES "loans"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_deviceId_fkey" FOREIGN KEY ("deviceId") REFERENCES "devices"("deviceId") ON DELETE SET NULL ON UPDATE CASCADE;

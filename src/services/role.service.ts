@@ -21,7 +21,7 @@ const translator = new TranslationService(translationConfig);
  */
 export const createRole = async (data: CreateRoleInput, userId: string) => {
   const exists = await prisma.role.findUnique({ where: { name: data.name } });
-  if (exists) throw new Error('Role with this name already exists');
+  if (exists) throw new Error('roles.role_exists');
 
   const role = await prisma.role.create({
     data: {
@@ -50,7 +50,7 @@ export const createRole = async (data: CreateRoleInput, userId: string) => {
     entityId: role.id,
     action: AuditAction.CREATE,
     details: {
-      action: 'Role created',
+      action: 'roles.role_created',
       name: role.name,
       description: role.description,
     },
@@ -147,7 +147,7 @@ export const getRoleById = async (id: string, locale?: Locale) => {
       },
     },
   });
-  if (!role) throw new AppError('Role not found', 404);
+  if (!role) throw new AppError('roles.role_not_found', 404);
 
   // Localiza name/description si se proporciona locale
   if (locale) {
@@ -169,13 +169,13 @@ export const updateRole = async (
   userId: string
 ) => {
   const role = await prisma.role.findUnique({ where: { id } });
-  if (!role) throw new AppError('Role not found', 404);
+  if (!role) throw new AppError('roles.role_not_found', 404);
 
-  if (role.isSystemRole) throw new AppError('Cannot update system roles', 403);
+  if (role.isSystemRole) throw new AppError('roles.cannot_update_system_role', 403);
 
   if (data.name && data.name !== role.name) {
     const exists = await prisma.role.findUnique({ where: { name: data.name } });
-    if (exists) throw new AppError('Role with this name already exists', 409);
+    if (exists) throw new AppError('roles.role_exists', 409);
   }
 
   const updated = await prisma.role.update({
@@ -240,7 +240,7 @@ export const updateRole = async (
     entityId: id,
     action: AuditAction.UPDATE,
     details: {
-      action: 'Role updated',
+      action: 'roles.role_updated',
       changes: {
         name: data.name ? { from: role.name, to: data.name } : undefined,
         description: data.description !== undefined
@@ -263,13 +263,13 @@ export const deleteRole = async (id: string, userId: string) => {
       _count: { select: { users: true } },
     },
   });
-  if (!role) throw new AppError('Role not found', 404);
+  if (!role) throw new AppError('roles.role_not_found', 404);
 
-  if (role.isSystemRole) throw new AppError('Cannot delete system roles', 403);
+  if (role.isSystemRole) throw new AppError('roles.cannot_delete_system_role', 403);
 
   if (role._count.users > 0) {
     throw new AppError(
-      `Cannot delete role. It is assigned to ${role._count.users} user(s)`,
+      `roles.cannot_delete_role_assigned: ${role._count.users}`,
       400
     );
   }
@@ -290,7 +290,7 @@ export const deleteRole = async (id: string, userId: string) => {
     entityId: id,
     action: AuditAction.DELETE,
     details: {
-      action: 'Role deleted',
+      action: 'roles.role_deleted',
       name: role.name,
     },
   });
@@ -305,7 +305,7 @@ export const assignPermissionsToRole = async (
   userId: string
 ) => {
   const role = await prisma.role.findUnique({ where: { id: roleId } });
-  if (!role) throw new AppError('Role not found', 404);
+  if (!role) throw new AppError('roles.role_not_found', 404);
 
   const permissions = await prisma.permission.findMany({
     where: { id: { in: data.permissionIds } },

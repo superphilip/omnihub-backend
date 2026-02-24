@@ -47,6 +47,9 @@ model User {
   role              Role      @relation(fields: [roleId], references: [id])
   mainRouteId       String?
   mainRoute         Route?    @relation("RouteClients", fields: [mainRouteId], references: [id])
+  lastLoginAt       DateTime?
+  passwordChangedAt DateTime?
+  sessions          Session[]
   assignedRoutes    UserRoute[]
   loansAsClient     Loan[]    @relation("ClientLoans")
   collectionLogs    CollectionLog[]
@@ -455,17 +458,18 @@ model UserRoute {
 }
 
 model Device {
-  id           String   @id @default(uuid())
-  userId       String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  deviceId     String     @unique
-  deviceName   String?
-  deviceModel  String?
-  isTrusted    Boolean    @default(false)
-  isBlocked    Boolean    @default(false)
-  lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId      String     @unique
+  deviceName    String?
+  deviceModel   String?
+  isTrusted     Boolean    @default(false)
+  isBlocked     Boolean    @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sessions      Session[]
 
   @@index([userId])
   @@index([deviceId])
@@ -658,6 +662,30 @@ model Translation {
   @@unique([resourceType, resourceId, field, locale]) // Unicidad por entidad/campo/idioma
   @@index([resourceType, resourceId, locale])         // Búsqueda rápida por entidad/idioma
   @@map("translations")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relación opcional con Device para saber qué sesión pertenece a qué equipo
+  deviceId     String?
+  device       Device?  @relation(fields: [deviceId], references: [deviceId])
+  
+  token        String   @unique // Aquí guardas el Refresh Token
+  ipAddress    String?
+  userAgent    String?
+  
+  isValid      Boolean  @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
 }
 
 // ===================================

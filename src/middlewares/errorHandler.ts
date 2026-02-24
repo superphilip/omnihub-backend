@@ -8,8 +8,8 @@ import { ZodError } from 'zod';
 // ═══════════════════════════════════════════════════════
 
 interface SyntaxErrorWithBody extends SyntaxError {
-  body:  string;
-  status:  number;
+  body: string;
+  status: number;
   statusCode: number;
 }
 
@@ -24,7 +24,7 @@ function isSyntaxErrorWithBody(err: unknown): err is SyntaxErrorWithBody {
 interface MulterError extends Error {
   code: string;
   field?: string;
-  storageErrors?:  Error[];
+  storageErrors?: Error[];
 }
 
 function isMulterError(err: unknown): err is MulterError {
@@ -46,10 +46,10 @@ export const errorHandler = (
   next: NextFunction
 ) => {
   // Log completo del error en desarrollo
-  if (process.env. NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development') {
     console.error('═══════════════════════════════════════');
     console.error('❌ ERROR CAPTURADO: ');
-    console.error('   Tipo:', err instanceof Error ? err.constructor.name :  typeof err);
+    console.error('   Tipo:', err instanceof Error ? err.constructor.name : typeof err);
     console.error('   Mensaje:', err instanceof Error ? err.message : String(err));
     console.error('   Stack:', err instanceof Error ? err.stack : 'No stack trace');
     console.error('   Request:', {
@@ -82,12 +82,12 @@ export const errorHandler = (
       success: false,
       error: 'Validation error',
       statusCode: 400,
-      errors: err.issues. map((issue) => ({  // ← CAMBIO: err.issues en lugar de err.errors
+      errors: err.issues.map((issue) => ({  // ← CAMBIO: err.issues en lugar de err.errors
         field: issue.path.join('.'),
         message: issue.message,
         code: issue.code,
       })),
-      ...(process.env.NODE_ENV === 'development' && { 
+      ...(process.env.NODE_ENV === 'development' && {
         stack: err.stack,
         zodError: err.format(),
       }),
@@ -104,10 +104,24 @@ export const errorHandler = (
     let statusCode = 500;
 
     switch (err.code) {
-      case 'P2002': 
-        message = `Duplicate value for field:  ${(err. meta?. target as string[])?.join(', ') || 'unknown'}`;
-        statusCode = 409;
-        break;
+      case 'P2002': {
+        const duplicateFields = (err.meta?.target as string[]) ?? [];
+        // Si no hay campos, agrega más contexto al error
+        console.error('[P2002 DUPLICATE]', { duplicateFields, model: err.meta?.modelName, meta: err.meta, body: req.body, path: req.path });
+        let message = `Duplicate value error`;
+        if (duplicateFields.length) {
+          message += ` for field(s): ${duplicateFields.join(', ')}`;
+        } else if (err.meta?.modelName) {
+          message += ` in ${err.meta.modelName}`;
+        }
+        return res.status(409).json({
+          success: false,
+          error: message,
+          statusCode: 409,
+          fields: duplicateFields.length > 0 ? duplicateFields : undefined,
+          model: err.meta?.modelName,
+        });
+      }
       case 'P2025':
         message = 'Record not found';
         statusCode = 404;
@@ -140,7 +154,7 @@ export const errorHandler = (
       success: false,
       error: message,
       statusCode,
-      ...(process.env. NODE_ENV === 'development' && {
+      ...(process.env.NODE_ENV === 'development' && {
         prismaCode: err.code,
         prismaMessage: err.message,
         meta: err.meta,
@@ -180,7 +194,7 @@ export const errorHandler = (
     return res.status(500).json({
       success: false,
       error: 'Critical database error',
-      statusCode:  500,
+      statusCode: 500,
       ...(process.env.NODE_ENV === 'development' && {
         details: err.message,
         stack: err.stack,
@@ -204,7 +218,7 @@ export const errorHandler = (
     return res.status(401).json({
       success: false,
       error: 'Token expired',
-      statusCode:  401,
+      statusCode: 401,
       ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     });
   }
@@ -237,7 +251,7 @@ export const errorHandler = (
       case 'LIMIT_FIELD_COUNT':
         message = 'Too many fields';
         break;
-      default: 
+      default:
         message = `File upload error: ${err.message}`;
     }
 
@@ -245,8 +259,8 @@ export const errorHandler = (
       success: false,
       error: message,
       statusCode: 400,
-      ...(process.env. NODE_ENV === 'development' && {
-        multerCode:  err.code,
+      ...(process.env.NODE_ENV === 'development' && {
+        multerCode: err.code,
         field: err.field,
         stack: err.stack,
       }),
@@ -259,9 +273,9 @@ export const errorHandler = (
   if (isSyntaxErrorWithBody(err)) {
     return res.status(400).json({
       success: false,
-      error:  'Invalid JSON in request body',
+      error: 'Invalid JSON in request body',
       statusCode: 400,
-      ...(process.env. NODE_ENV === 'development' && {
+      ...(process.env.NODE_ENV === 'development' && {
         details: err.message,
         stack: err.stack,
       }),
@@ -274,12 +288,12 @@ export const errorHandler = (
   if (err instanceof Error) {
     return res.status(500).json({
       success: false,
-      error:  process.env.NODE_ENV === 'production'
+      error: process.env.NODE_ENV === 'production'
         ? 'Internal server error'
-        :  err.message || 'Something went wrong',
+        : err.message || 'Something went wrong',
       statusCode: 500,
-      ...(process. env.NODE_ENV === 'development' && {
-        type:  err.constructor.name,
+      ...(process.env.NODE_ENV === 'development' && {
+        type: err.constructor.name,
         message: err.message,
         stack: err.stack,
       }),
@@ -292,10 +306,10 @@ export const errorHandler = (
   return res.status(500).json({
     success: false,
     error: 'Internal server error',
-    statusCode:  500,
+    statusCode: 500,
     ...(process.env.NODE_ENV === 'development' && {
       type: typeof err,
-      value:  String(err),
+      value: String(err),
     }),
   });
 };

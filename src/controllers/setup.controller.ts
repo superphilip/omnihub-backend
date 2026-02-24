@@ -17,7 +17,7 @@ export const initializeSystem = asyncHandler(async (req:  Request, res: Response
 
   res.status(201).json({
     success: true,
-    message: 'System initialized successfully',
+    message: 'config.system_initialized',
     data: result,
   });
 });

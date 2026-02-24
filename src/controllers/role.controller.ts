@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
 import * as RoleService from '../services/role.service.js';
-import { inferColumnsFromRows } from '../utils/ColumnInfer.utils.js';
+import COLUMN_LABELS from '../common/mappers/ColumRole.mapper.js';
+
 
 export const createRole = asyncHandler(async (req: Request, res: Response) => {
   const role = await RoleService.createRole(
@@ -11,7 +12,7 @@ export const createRole = asyncHandler(async (req: Request, res: Response) => {
 
   res.status(201).json({
     success: true,
-    message: 'Role created successfully',
+    message: 'notifications.saved',
     data: role,
   });
 });
@@ -29,16 +30,23 @@ export async function getAllRoles(req: Request, res: Response) {
   );
 
   if (includeColumns) {
-    const columns = inferColumnsFromRows(result.data as unknown as Record<string, unknown>[], {
-      excludeKeys: ['password', 'refreshToken'],
-    });
+  // Obtén locale (es/en)
+  const locale = req.locale ?? 'es';
+  const labels: Record<string, string> = COLUMN_LABELS[locale] ?? {};
 
-    return res.json({
-      data: result.data,
-      columns,
-      meta: result.meta,
-    });
-  }
+  // Obtén keys de las columnas a mostrar
+  const keys = Object.keys(result.data[0] ?? {});
+  const columns = keys.map(key => ({
+    key,
+    label: labels[key] ?? key,
+  }));
+
+  return res.json({
+    data: result.data,
+    columns,
+    meta: result.meta,
+  });
+}
 
   return res.json({
     data: result.data,
@@ -67,7 +75,7 @@ export const updateRole = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    message: 'Role updated successfully',
+    message: 'notifications.updated',
     data: role,
   });
 });
@@ -80,7 +88,7 @@ export const deleteRole = asyncHandler(async (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    message: 'Role deleted successfully',
+    message: 'notifications.deleted',
   });
 });
 
